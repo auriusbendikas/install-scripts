@@ -1,0 +1,91 @@
+---
+variant: fcos
+version: 1.7.0
+
+passwd:
+  users:
+    - name: core
+      should_exist: false
+    - name: xxx
+      password_hash: xxx
+      home_dir: /home/xxx
+      groups:
+        - adm
+        - docker
+        - sudo
+        - systemd-journal
+        - wheel
+      shell: /bin/bash
+storage:
+  disks:
+    - device: /dev/disk/by-id/coreos-boot-disk
+      partitions:
+        - label: swap
+          number: 0
+          start_mib: 106280
+  filesystems:
+    - device: /dev/disk/by-partlabel/swap
+      format: swap
+      wipe_filesystem: true
+      with_mount_unit: true
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: homenucleus
+    - path: /etc/ssh/sshd_config.d/20-enable-passwords.conf
+      mode: 0644
+      contents:
+        inline: |
+          PasswordAuthentication yes
+    - path: /etc/sysctl.d/97-swappiness.conf
+      mode: 0644
+      contents:
+        inline: |
+          vm.swappiness=25
+    - path: /etc/zincati/config.d/51-rollout-wariness.toml
+      contents:
+        inline: |
+          [identity]
+          rollout_wariness = 0.95
+    - path: /etc/zincati/config.d/55-updates-strategy.toml
+      contents:
+        inline: |
+          [updates]
+          strategy = "periodic"
+          [updates.periodic]
+          time_zone = "Europe/Stockholm"
+          [[updates.periodic.window]]
+          days = [ "Sun" ]
+          start_time = "01:30"
+          length_minutes = 120
+  links:
+    - path: /etc/localtime
+      target: ../usr/share/zoneinfo/Europe/Stockholm
+systemd:
+  units:
+    - name: usr-bin.mount
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Mount writable /usr/bin
+        After=var.mount
+
+        [Mount]
+        What=overlay
+        Where=/usr/bin
+        Type=overlay
+        Options=lowerdir=/usr/bin,upperdir=/var/usr/bin,workdir=/var/usr/bin.workdir
+        ReadWriteOnly=true
+
+        [Install]
+        WantedBy=local-fs.target
+kernel_arguments:
+  should_exist:
+    - mitigations=off
+    - zswap.enabled=1
+    - zswap.max_pool_percent=25
+    - zswap.compressor=lz4hc
+  should_not_exist:
+    - mitigations=auto,nosmt
